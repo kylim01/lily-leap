@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.kylim01.lilyleap",
+  "appName": "Lily Leap",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0b2b33"
+  },
+  "ios": {
+    "backgroundColor": "#0b2b33",
+    "scrollEnabled": false
+  }
+}

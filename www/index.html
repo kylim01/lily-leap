@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b2b33">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Lily Leap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Rubik:wght@400;600;800&display=swap">
+<style>
+/* Layout: full-screen night pond; HUD floats at top, hold-to-leap anywhere. Single dark world by choice. */
+:root{
+  --pond:#0b2b33; --pond2:#0f3d45; --ink:#f3f7e9; --muted:#9cc3bd; --leaf:#5fcf72; --firefly:#ffe36b; --coral:#ff7a59;
+  --display:"Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body:"Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
+body{position:fixed;inset:0;width:100%;background:var(--pond);color:var(--ink);font-family:var(--body);
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:pointer}
+.hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;
+  padding-top:calc(12px + env(safe-area-inset-top, 0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.logo{pointer-events:auto;font-family:var(--display);font-weight:700;font-size:26px;line-height:1;color:var(--leaf);text-shadow:0 2px 0 rgba(0,0,0,.35)}
+.logo span{color:var(--firefly)}
+.stats{display:flex;gap:16px;text-align:right;align-items:flex-start}
+.mute{pointer-events:auto;border:0;border-radius:12px;width:40px;height:40px;font-size:18px;background:rgba(255,255,255,.1);color:var(--ink);cursor:pointer}
+.mute:focus-visible{outline:3px solid var(--firefly)}
+.stat{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stat b{display:block;font-family:var(--display);font-weight:700;letter-spacing:0;font-size:26px;color:var(--ink);font-variant-numeric:tabular-nums}
+.hint{position:absolute;left:0;right:0;bottom:0;text-align:center;margin:0;color:var(--muted);font-size:14px;line-height:1.5;pointer-events:none;
+  padding-bottom:calc(18px + env(safe-area-inset-bottom, 0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));transition:opacity .4s}
+.hint b{color:var(--ink)}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:rgba(4,20,24,.7);backdrop-filter:blur(4px);z-index:20;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.card{box-sizing:border-box;width:100%;max-width:360px;background:#123f46;border-radius:24px;padding:26px 22px;display:flex;flex-direction:column;gap:14px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.card h2{margin:0;font-family:var(--display);font-weight:700;font-size:32px}
+.card p{margin:0;color:var(--muted);line-height:1.5}
+.big{font-family:var(--display);font-weight:700;font-size:58px;line-height:1;color:var(--firefly)}
+.btn{font:800 15px var(--body);border:0;border-radius:14px;padding:14px;cursor:pointer;background:#1d5a62;color:var(--ink)}
+.btn.primary{background:var(--leaf);color:#0b2b1a}
+.btn:focus-visible{outline:3px solid var(--firefly);outline-offset:2px}
+.adbox{aspect-ratio:16/10;max-width:100%;border-radius:16px;border:2px dashed #3d7a80;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:12px}
+.adbox b{display:block;font-family:var(--display);font-size:42px;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.hint{transition:none}}
+</style>
+
+<canvas id="cv" aria-label="Lily Leap pond. Tap to hop forward, swipe left or right to hop sideways."></canvas>
+<div class="hud">
+  <div class="logo">Lily <span>Leap</span></div>
+  <div class="stats">
+    <button class="mute" id="mute" aria-label="Mute sound">🔊</button>
+    <div class="stat">Score<b id="score">0</b></div>
+    <div class="stat">Best<b id="best">0</b></div>
+  </div>
+</div>
+<p class="hint" id="hint"><b>Tap</b> to hop forward. <b>Swipe</b> left or right to hop to the next pad.<br>Pads flow downstream and sink if you linger, so keep moving.</p>
+
+<div class="overlay" id="over" hidden>
+  <div class="card">
+    <h2 id="overTitle">Splash!</h2>
+    <div class="big" id="finalScore">0</div>
+    <p id="finalBest">Best 0</p>
+    <button class="btn primary" id="cont">Watch ad · get a rescue pad</button>
+    <button class="btn" id="again">Hop again</button>
+  </div>
+</div>
+<div class="overlay" id="diag" hidden>
+  <div class="card">
+    <h2>Ad status</h2>
+    <pre id="diagText" style="text-align:left;white-space:pre-wrap;font-size:12px;margin:0;max-height:50vh;overflow:auto"></pre>
+    <button class="btn" id="diagClose">Close</button>
+  </div>
+</div>
+<div class="overlay" id="ad" hidden>
+  <div class="card">
+    <div class="adbox"><div><b id="adCount">3</b>Rewarded video ad plays here<br>(AdMob in the real app)</div></div>
+    <p>Demo placeholder. Players only see this if they choose to continue.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W = 390, H = 800, dpr = 1;
+const LANE = 86;                 // vertical spacing between rows
+let best = 0; try { best = +localStorage.getItem('lilyleap-best') || 0; } catch(e) {}
+const rand = (a,b) => a + Math.random()*(b-a);
+const lerp = (a,b,t) => a + (b-a)*t;
+
+/* ---------- world ---------- */
+let S;
+function makeLane(i){
+  if (i === 0) return { i, shore:true, pads:[], v:0 };
+  const d = Math.min(1, i/160);
+  const still = i % 14 === 0;                       // a calm resting row every 14 rows
+  const easy = i <= 5;                              // gentle warm-up rows
+  const r = still ? 30 : easy ? 30 : lerp(30, 25, d) * rand(0.95, 1.05);
+  // Like Crossy Road logs: each row flows one way, alternating, and pads come in touching clusters.
+  const dir = i % 2 ? 1 : -1;
+  const v = still ? 0 : dir * (easy ? 32 : lerp(40, 115, d)) * rand(0.85, 1.15);
+  let groups;
+  if (still) groups = [1,1,1,1,1];
+  else if (easy) groups = [3, 3];
+  else {
+    const big = Math.random() < lerp(0.85, 0.35, d);
+    groups = big ? [3, 2] : (Math.random() < 0.5 ? [2, 2] : [2, 1, 1]);
+  }
+  const span = W + 4*r, pads = [], pitch = 2*r*1.02;
+  const slot = span / groups.length, off = Math.random() * span;
+  groups.forEach((g, gi) => {
+    const start = off + gi*slot + rand(0, Math.max(0, slot - g*pitch - 2*r));
+    for (let k=0;k<g;k++){
+      const x = ((start + k*pitch) % span) - 2*r;
+      pads.push({ x, r, sink:0, firefly: !still && Math.random() < 0.12 });
+    }
+  });
+  if (still){ pads.forEach((p,k) => p.x = (k+0.5) * W/5); }
+  return { i, pads, v, still, span };
+}
+function lane(i){ while (S.lanes.length <= i) S.lanes.push(makeLane(S.lanes.length)); return S.lanes[i]; }
+
+function newGame(){
+  S = { crocs:[], crocT:2.5, chomp:null, lanes:[], frog:{ lane:0, x:(Math.floor(COLS/2)+0.5)*W/COLS, pad:null, off:0, jump:null, dead:false, face:0 },
+        score:0, maxLane:0, cam:0, over:false, continued:false, shake:0, t:0 };
+  lane(40);
+  S.cam = laneY(0) - H*0.72;
+  $('over').hidden = true; hud();
+}
+const laneY = i => -i*LANE;
+const toScreen = y => y - S.cam;
+
+/* ---------- effects ---------- */
+const parts = [], pops = [], ripples = [];
+function splash(x,y){ for (let k=0;k<22;k++){ const a=rand(-Math.PI, 0), v=rand(80,260); parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,c:'#bfe9ff'});} ripples.push({x,y,t:0,big:true}); }
+function pop(text,x,y,c='#f3f7e9',size=26){ pops.push({text,x,y,c,size,life:1}); }
+
+/* ---------- sound (synthesised, no files) ---------- */
+const Sound = (() => {
+  let ac = null, muted = false;
+  try { muted = localStorage.getItem('lilyleap-muted') === '1'; } catch(e) {}
+  const ctxA = () => { if (!ac){ const C = window.AudioContext || window.webkitAudioContext; if (C) ac = new C(); } if (ac && ac.state === 'suspended') ac.resume(); return ac; };
+  function tone(f0, f1, dur, type='sine', vol=0.2, delay=0){
+    if (muted) return; const a = ctxA(); if (!a) return;
+    const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t+0.01); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  function noise(dur, f0, f1, vol=0.25, delay=0){
+    if (muted) return; const a = ctxA(); if (!a) return;
+    const t = a.currentTime + delay, n = Math.floor(a.sampleRate*dur), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+    const src = a.createBufferSource(), flt = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = buf; flt.type = 'bandpass'; flt.Q.value = 1.2;
+    flt.frequency.setValueAtTime(f0, t); flt.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    g.gain.setValueAtTime(vol, t);
+    src.connect(flt).connect(g).connect(a.destination); src.start(t);
+  }
+  return {
+    unlock: () => ctxA(),
+    hop:     () => { tone(380, 720, 0.09, 'square', 0.06); },
+    land:    () => { tone(220, 120, 0.12, 'sine', 0.22); noise(0.08, 900, 400, 0.08); },
+    firefly: () => { tone(1320, 1320, 0.12, 'triangle', 0.12); tone(1760, 1760, 0.18, 'triangle', 0.1, 0.08); },
+    splash:  () => { noise(0.45, 1800, 300, 0.35); tone(300, 90, 0.3, 'sine', 0.15); },
+    chomp:   () => { noise(0.06, 3000, 2000, 0.4, 0.28); tone(160, 60, 0.18, 'sawtooth', 0.18, 0.28); },
+    sink:    () => { tone(500, 180, 0.35, 'sine', 0.1); },
+    swish:   () => { noise(0.5, 400, 1200, 0.05); },
+    rescue:  () => { [523, 659, 784, 1047].forEach((f,k) => tone(f, f, 0.14, 'triangle', 0.12, k*0.08)); },
+    milestone: () => { tone(784, 784, 0.1, 'triangle', 0.1); tone(1047, 1047, 0.16, 'triangle', 0.1, 0.09); },
+    toggle(){ muted = !muted; try{ localStorage.setItem('lilyleap-muted', muted ? '1' : '0'); }catch(e){} return muted; },
+    get muted(){ return muted; }
+  };
+})();
+
+/* ---------- jumping ---------- */
+const HOP = 0.17;                 // seconds per hop
+const COLS = 9;                  // the pond is a grid of blocks, 9 across
+const BW = () => W/COLS;         // one block
+const snap = x => (Math.min(COLS-1, Math.max(0, Math.floor(x/BW()))) + 0.5) * BW();
+function move(dir){              // dir: 'up' | 'down' | 'left' | 'right'
+  if (S.over || S.frog.dead) return;
+  hideHint();
+  if (S.frog.jump) return;        // one tap = one hop, never a double
+  const f = S.frog;
+  if (dir === 'down' && f.lane === 0) return;
+  const dl = dir === 'up' ? 1 : dir === 'down' ? -1 : 0;
+  const dx = dir === 'left' ? -BW() : dir === 'right' ? BW() : 0;
+  f.face = { up:0, right:Math.PI/2, down:Math.PI, left:-Math.PI/2 }[dir];
+  const j = { from:f.lane, to:f.lane+dl, x0:f.x, t:0, dur:HOP, side: dl === 0 };
+  if (j.side && f.pad){
+    // sideways on the water: hop to the centre of the next pad that way, if one is close enough
+    const L = lane(f.lane), sign = Math.sign(dx);
+    let best = null, bd = Infinity;
+    for (const p of L.pads){
+      if (p === f.pad || p.sink >= 1) continue;
+      const d = (p.x - f.x) * sign;
+      if (d > 0 && d < bd){ bd = d; best = p; }
+    }
+    if (best && bd < 2.6 * best.r){ j.pad = best; j.rel = 0; }
+    else j.x1 = f.x + dx;                                       // nothing there: into the water
+  }
+  else j.x1 = Math.min(W - BW()/2, Math.max(BW()/2, f.x + dx));
+  if (dx && !j.pad && j.x1 === f.x) return;   // already at the edge
+  if (!j.side && f.pad) f.pad.sink = Math.max(f.pad.sink, 0.001);
+  f.pad = null; f.jump = j; Sound.hop();
+}
+function jumpX(j){ return j.pad ? lerp(j.x0, j.pad.x + j.rel, j.t) : lerp(j.x0, j.x1, j.t); }
+function land(){
+  const f = S.frog, j = f.jump, L = lane(j.to);
+  f.x = j.pad ? j.pad.x + j.rel : j.x1;
+  f.jump = null; f.lane = j.to;
+  if (L.shore){ f.pad = null; f.x = snap(f.x); return; }
+  let hit = null;
+  for (const p of L.pads){ if (p.sink < 1 && Math.abs(p.x - f.x) < p.r*0.95 + 6) { hit = p; break; } }
+  const sy = toScreen(laneY(f.lane));
+  if (!hit){ splash(f.x, sy); S.chomp = { x:f.x, wy:laneY(f.lane), t:0 }; Sound.splash(); Sound.chomp(); die('Chomp!'); return; }
+  f.pad = hit; f.off = f.x - hit.x;
+  ripples.push({ x:f.x, y:sy, t:0 }); Sound.land();
+  if (f.lane > S.maxLane){
+    S.score += f.lane - S.maxLane; S.maxLane = f.lane;
+    if (S.maxLane % 25 === 0){ Sound.milestone(); pop(S.maxLane + ' rows!', W/2, sy-90, '#5fcf72', 26); }
+    if (L.still) pop('Calm water', W/2, sy-40, '#9cc3bd', 18);
+  }
+  if (hit.firefly){ hit.firefly = false; S.score += 5; Sound.firefly(); pop('Firefly +5', f.x, sy-60, '#ffe36b', 22); }
+  hud();
+}
+function die(reason){
+  const f = S.frog; f.dead = true; S.shake = 0.35;
+  S.over = true;
+  if (S.score > best){ best = S.score; try{ localStorage.setItem('lilyleap-best', best); }catch(e){} }
+  $('overTitle').textContent = reason;
+  $('finalScore').textContent = S.score.toLocaleString();
+  $('finalBest').textContent = 'Best ' + best.toLocaleString();
+  $('cont').hidden = S.continued;
+  setTimeout(() => { $('over').hidden = false; $('again').focus(); }, 650);
+  hud();
+}
+function rescue(){
+  const f = S.frog, L = lane(f.lane);
+  f.x = Math.min(W-40, Math.max(40, f.x));
+  if (!L.shore){
+    const p = { x:f.x, r:34, sink:0, firefly:false, fixed:true, shield:3 };
+    L.pads.push(p); f.pad = p; f.off = 0;
+  }
+  f.dead = false; f.jump = null; S.over = false; S.continued = true; S.chomp = null;
+  Sound.rescue();
+  pop('Rescue pad!', W/2, toScreen(laneY(f.lane)) - 60, '#5fcf72', 28);
+  hud();
+}
+
+/* ---------- update ---------- */
+function update(dt){
+  S.t += dt;
+  const f = S.frog;
+  // pads move and sink
+  const lo = Math.max(0, f.lane - 4), hi = f.lane + 12;
+  for (let i=lo;i<=hi;i++){
+    const L = lane(i); if (L.shore) continue;
+    for (const p of L.pads){
+      if (!p.fixed){
+        p.x += L.v * dt;
+        if (L.v > 0 && p.x > W + 2*p.r) p.x -= L.span;
+        else if (L.v < 0 && p.x < -2*p.r) p.x += L.span;
+      }
+      if (p.shield){ p.shield -= dt; if (p.shield <= 0){ p.shield = 0; } continue; }
+      if (p.sink > 0 && p.sink < 1) p.sink = Math.min(1, p.sink + dt/sinkTime(i));
+    }
+  }
+  if (!S.over){
+    if (f.jump){
+      f.jump.t += dt/f.jump.dur;
+      if (f.jump.t >= 1) land();
+    } else if (f.pad){
+      if (f.pad.sink === 0 && f.lane >= 6 && !f.pad.shield) f.pad.sink = 0.001;  // sinking starts once you're on it
+      f.off += (0 - f.off) * Math.min(1, dt * 16);   // settle into the centre of the pad
+      f.x = f.pad.x + f.off;
+      if (f.pad.sink >= 1){ splash(f.x, toScreen(laneY(f.lane))); Sound.sink(); Sound.splash(); die('Sank!'); }
+      else if (f.x < -6 || f.x > W + 6){ splash(Math.min(W-6, Math.max(6, f.x)), toScreen(laneY(f.lane))); Sound.splash(); die('Swept away!'); }
+      
+    }
+  }
+  // camera follows the frog
+  const fy = f.jump ? lerp(laneY(f.jump.from), laneY(f.jump.to), f.jump.t) : laneY(f.lane);
+  const target = fy - H*0.68;
+  S.cam += (target - S.cam) * Math.min(1, dt*4);
+  // crocodiles cruise through the rows ahead of the frog
+  S.crocT -= dt;
+  if (S.crocT <= 0){
+    S.crocT = rand(2.5, 5.5);
+    const k = f.lane + 1 + Math.floor(rand(0, 6)), L = lane(k);
+    if (!L.shore && !L.still){
+      const dir = Math.sign(L.v) || 1;
+      if (k - f.lane <= 3) Sound.swish();
+      S.crocs.push({ lane:k, dir, x: dir > 0 ? -90 : W + 90, speed: Math.abs(L.v)*1.3 + 45, ph: rand(0, 6) });
+    }
+  }
+  for (let k=S.crocs.length-1;k>=0;k--){
+    const c = S.crocs[k]; c.x += c.dir*c.speed*dt; c.ph += dt*5;
+    if (c.x < -140 || c.x > W + 140 || c.lane < f.lane - 6) S.crocs.splice(k,1);
+  }
+  if (S.chomp) S.chomp.t += dt;
+  S.shake = Math.max(0, S.shake - dt);
+}
+function sinkTime(i){ return lerp(4.2, 2.4, Math.min(1, i/150)); }
+
+/* ---------- draw ---------- */
+function drawPad(x,y,r,sink,t){
+  const s = 1 - sink*0.55, rr = r*s;
+  ctx.save(); ctx.globalAlpha = 1 - sink*0.7;
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x+3,y+5,rr,rr*0.82,0,0,Math.PI*2); ctx.fill();
+  const g = ctx.createRadialGradient(x-rr*0.3,y-rr*0.35,rr*0.1,x,y,rr);
+  g.addColorStop(0,'#8be38f'); g.addColorStop(1,'#2f9a4a');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.ellipse(x,y,rr,rr*0.82,0,-Math.PI/2+0.32,-Math.PI/2-0.32+Math.PI*2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(20,90,40,.55)'; ctx.lineWidth = 1.5;
+  for (let k=0;k<5;k++){ const a = -Math.PI/2 + 0.9 + k*1.05; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*rr*0.85, y+Math.sin(a)*rr*0.7); ctx.stroke(); }
+  if (sink > 0.01){ ctx.strokeStyle = `rgba(190,233,255,${0.5*sink})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x,y,rr*1.15,rr*0.95,0,0,Math.PI*2); ctx.stroke(); }
+  ctx.restore();
+}
+function drawFirefly(x,y,t){
+  const pulse = 0.6 + 0.4*Math.sin(t*6 + x);
+  const g = ctx.createRadialGradient(x,y,0,x,y,18);
+  g.addColorStop(0,`rgba(255,227,107,${0.9*pulse})`); g.addColorStop(1,'rgba(255,227,107,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff6c4'; ctx.beginPath(); ctx.arc(x,y,3.2,0,Math.PI*2); ctx.fill();
+}
+function drawCroc(x,y,dir,ph){
+  ctx.save(); ctx.translate(x, y); ctx.scale(dir, 1);
+  const body = '#5e9a45', dark = '#36652a';
+  // tail
+  ctx.fillStyle = body; ctx.beginPath();
+  const wag = Math.sin(ph)*7;
+  ctx.moveTo(-34, -8); ctx.quadraticCurveTo(-62, wag, -88, wag*1.6); ctx.quadraticCurveTo(-62, wag+4, -34, 8); ctx.fill();
+  // legs
+  ctx.fillStyle = dark;
+  for (const [lx,ly] of [[18,-12],[18,12],[-22,-12],[-22,12]]){ ctx.beginPath(); ctx.ellipse(lx + Math.sin(ph+lx)*2, ly*1.25, 7, 4, 0, 0, Math.PI*2); ctx.fill(); }
+  // body + snout
+  ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(-4, 0, 40, 13, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(26,-9); ctx.quadraticCurveTo(66,-7,70,0); ctx.quadraticCurveTo(66,7,26,9); ctx.fill();
+  // back ridges
+  ctx.fillStyle = dark;
+  for (let k=-30;k<=20;k+=10){ ctx.beginPath(); ctx.arc(k, 0, 2.6, 0, Math.PI*2); ctx.fill(); }
+  // eyes and nostrils
+  for (const s of [-1,1]){
+    ctx.fillStyle = body; ctx.beginPath(); ctx.arc(30, s*8, 5.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#e8d24a'; ctx.beginPath(); ctx.arc(31, s*8, 3.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fillRect(30.5, s*8 - 2.4, 1.4, 4.8);
+    ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(66, s*2.5, 1.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  // water line ripple
+  ctx.strokeStyle = 'rgba(190,233,255,.18)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y, 50, 18, 0, 0, Math.PI*2); ctx.stroke();
+}
+function drawChomp(x,y,t){
+  // jaws burst up from the water and snap shut
+  const p = Math.min(1, t/0.55), open = p < 0.45 ? p/0.45 : Math.max(0, 1 - (p-0.45)/0.12);
+  const rise = Math.min(1, t/0.2), a = Math.max(0, 1 - Math.max(0, t-0.9)/0.5);
+  if (a <= 0) return;
+  ctx.save(); ctx.translate(x, y + 18*(1-rise)); ctx.scale(1.6, 1.6); ctx.globalAlpha = a;
+  const ang = open * 0.75;
+  for (const s of [-1,1]){
+    ctx.save(); ctx.rotate(s*ang - Math.PI/2);
+    ctx.fillStyle = '#5e9a45'; ctx.beginPath(); ctx.moveTo(0, -12*s); ctx.quadraticCurveTo(46, -10*s, 58, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    for (let k=8;k<52;k+=8){ ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k+3, -5*s); ctx.lineTo(k+6, 0); ctx.fill(); }
+    if (s < 0){ ctx.fillStyle = '#e8d24a'; ctx.beginPath(); ctx.arc(10, -9, 4, 0, Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function drawFrog(x,y,squash,lift,face=0){
+  const sx = 1 + squash*0.18, sy = 1 - squash*0.22, R = 17;
+  ctx.save(); ctx.translate(x, y - lift);
+  if (lift > 0){ ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0, lift+6, R*0.9, R*0.5, 0, 0, Math.PI*2); ctx.fill(); }
+  ctx.rotate(face);
+  ctx.scale(sx, sy);
+  ctx.fillStyle = '#2f8f3e';
+  for (const s of [-1,1]){ ctx.beginPath(); ctx.ellipse(s*R*0.95, R*0.55, R*0.5, R*0.32, s*0.5, 0, Math.PI*2); ctx.fill(); }
+  const g = ctx.createRadialGradient(-5,-6,2,0,0,R*1.1); g.addColorStop(0,'#b6f37a'); g.addColorStop(1,'#3fae4c');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0,0,R,R*0.9,0,0,Math.PI*2); ctx.fill();
+  for (const s of [-1,1]){
+    ctx.fillStyle = '#3fae4c'; ctx.beginPath(); ctx.arc(s*R*0.48, -R*0.62, R*0.38, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s*R*0.48, -R*0.66, R*0.26, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#132'; ctx.beginPath(); ctx.arc(s*R*0.5, -R*0.7, R*0.13, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,140,120,.55)';
+  for (const s of [-1,1]){ ctx.beginPath(); ctx.ellipse(s*R*0.55, R*0.05, 3.5, 2.2, 0, 0, Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
+function draw(){
+  const t = S.t, f = S.frog;
+  const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#0a2229'); g.addColorStop(1,'#11464d');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  if (S.shake > 0) ctx.translate((Math.random()-.5)*12*S.shake/0.35, 0);
+  const first = Math.max(0, Math.floor(-(S.cam+H)/LANE) - 1), last = Math.ceil(-S.cam/LANE) + 1;
+  // lane water bands + shimmer
+  for (let i=first;i<=last;i++){
+    const y = toScreen(laneY(i));
+    ctx.fillStyle = i % 2 ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.05)';
+    ctx.fillRect(0, y-LANE/2, W, LANE);
+    const L = lane(i);
+    if (!L.shore && L.v){
+      ctx.strokeStyle = 'rgba(190,233,255,.08)'; ctx.lineWidth = 2;
+      for (let k=0;k<4;k++){
+        const xx = (((t*L.v*0.6 + k*W/4 + i*37) % W) + W) % W;
+        ctx.beginPath(); ctx.moveTo(xx, y+LANE*0.32); ctx.lineTo(xx + 22*Math.sign(L.v), y+LANE*0.32); ctx.stroke();
+      }
+    }
+  }
+  // shore
+  const shoreY = toScreen(laneY(0));
+  if (shoreY - LANE/2 < H){
+    ctx.fillStyle = '#2a4a2c'; ctx.fillRect(0, shoreY - LANE*0.42, W, H);
+    ctx.fillStyle = '#3a6b3c'; ctx.fillRect(0, shoreY - LANE*0.42, W, 8);
+    ctx.fillStyle = '#5c8f4a';
+    for (let k=0;k<14;k++){ const xx = (k*61) % W; ctx.beginPath(); ctx.moveTo(xx, shoreY-LANE*0.42); ctx.lineTo(xx+4, shoreY-LANE*0.42-14); ctx.lineTo(xx+8, shoreY-LANE*0.42); ctx.fill(); }
+  }
+  // crocodiles swim under the pads
+  for (const c of S.crocs){ const y = toScreen(laneY(c.lane)); if (y > -60 && y < H + 60) drawCroc(c.x, y + 4, c.dir, c.ph); }
+  // pads
+  for (let i=first;i<=last;i++){
+    const L = lane(i); if (L.shore) continue;
+    const y = toScreen(laneY(i));
+    for (const p of L.pads){
+      drawPad(p.x, y, p.r, p.sink, t);
+      if (p.firefly) drawFirefly(p.x + p.r*0.25, y - p.r*0.5, t);
+      if (p.shield){ ctx.strokeStyle = 'rgba(255,227,107,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x,y,p.r*1.15,p.r*0.95,0,0,Math.PI*2); ctx.stroke(); }
+    }
+  }
+  if (S.chomp) drawChomp(S.chomp.x, toScreen(S.chomp.wy), S.chomp.t);
+  // ripples
+  for (let k=ripples.length-1;k>=0;k--){
+    const r = ripples[k]; r.t += 1/60; if (r.t > 0.8){ ripples.splice(k,1); continue; }
+    ctx.strokeStyle = `rgba(190,233,255,${0.6*(1-r.t/0.8)})`; ctx.lineWidth = 2;
+    const rad = (r.big?60:36) * r.t/0.8 + 10;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad*0.6, 0, 0, Math.PI*2); ctx.stroke();
+  }
+  // frog
+  if (!f.dead){
+    let fx = f.x, fy, lift = 0, squash = 0;
+    if (f.jump){
+      const p = f.jump.t;
+      fx = jumpX(f.jump);
+      fy = toScreen(lerp(laneY(f.jump.from), laneY(f.jump.to), p));
+      lift = Math.sin(Math.PI*p) * 18;
+      squash = p < 0.15 ? 0.6 : 0;
+    } else {
+      fy = toScreen(laneY(f.lane));
+      if (f.pad) fy += Math.sin(t*3)*1.2 + f.pad.sink*6;
+    }
+    drawFrog(fx, fy, squash, lift, f.face);
+  }
+  ctx.restore();
+  // particles + popups
+  for (let k=parts.length-1;k>=0;k--){
+    const p = parts[k]; p.life -= 1/45; if (p.life<=0){ parts.splice(k,1); continue; }
+    p.x += p.vx/60; p.y += p.vy/60; p.vy += 600/60;
+    ctx.globalAlpha = p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x,p.y,3*p.life+1,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  for (let k=pops.length-1;k>=0;k--){
+    const p = pops[k]; p.life -= 1/70; if (p.life<=0){ pops.splice(k,1); continue; }
+    ctx.save(); ctx.globalAlpha = Math.min(1,p.life*2); ctx.textAlign='center';
+    ctx.font = `700 ${p.size}px Fredoka, system-ui`;
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(5,25,30,.85)'; ctx.strokeText(p.text,p.x,p.y-(1-p.life)*40);
+    ctx.fillStyle = p.c; ctx.fillText(p.text,p.x,p.y-(1-p.life)*40); ctx.restore();
+  }
+}
+
+/* ---------- loop, sizing, input ---------- */
+function resize(){
+  const oldW = W;
+  W = window.innerWidth; H = window.innerHeight;
+  dpr = Math.min(window.devicePixelRatio||1, 3);
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if (S && oldW && oldW !== W){
+    const k = W/oldW;
+    for (const L of S.lanes){ for (const p of L.pads) p.x *= k; if (L.span) L.span = W + 4*(L.pads[0]?.r || 30); }
+    S.frog.x *= k;
+  }
+}
+window.addEventListener('resize', resize);
+document.addEventListener('touchmove', e => { if (!e.target.closest('#diagText')) e.preventDefault(); }, { passive:false });
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+function hud(){
+  $('score').textContent = S.score.toLocaleString();
+  $('best').textContent = Math.max(best, S.score).toLocaleString();
+}
+let hintShown = true;
+function hideHint(){ if (hintShown){ hintShown = false; $('hint').style.opacity = '0'; } }
+
+// Controls: tap anywhere to hop forward; swipe left or right to hop sideways.
+let touch = null;
+cv.addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlock(); touch = { x:e.clientX, y:e.clientY, done:false }; });
+cv.addEventListener('pointermove', e => {
+  if (!touch || touch.done) return;
+  const dx = e.clientX - touch.x, dy = e.clientY - touch.y;
+  if (Math.abs(dx) > 28 && Math.abs(dx) > Math.abs(dy)){ touch.done = true; move(dx > 0 ? 'right' : 'left'); }
+});
+window.addEventListener('pointerup', () => { if (touch && !touch.done) move('up'); touch = null; });
+window.addEventListener('pointercancel', () => { touch = null; });
+window.addEventListener('keydown', e => {
+  const k = { Space:'up', ArrowUp:'up', KeyW:'up', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right' }[e.code];
+  if (k && !e.repeat){ e.preventDefault(); Sound.unlock(); move(k); }
+});
+
+/* ---------- ads ----------
+   In the phone app this uses the AdMob plugin. In a browser it shows the demo placeholder.
+   ADS_LIVE stays false for test builds (Google test ads). The build sets it to true
+   only when you build with ADS_LIVE=1 (the "live ads" option in the GitHub workflows). */
+const ADS_LIVE = false;
+const TEST_IDS = {
+  android: { rewarded: 'ca-app-pub-3940256099942544/5224354917', interstitial: 'ca-app-pub-3940256099942544/1033173712' },
+  ios:     { rewarded: 'ca-app-pub-3940256099942544/1712485313', interstitial: 'ca-app-pub-3940256099942544/4411468910' }
+};
+const LIVE_IDS = {
+  android: TEST_IDS.android, // replace when the Android AdMob app is set up
+  ios:     TEST_IDS.ios // replace with Lily Leap's AdMob ad unit ids
+};
+const AD_IDS = ADS_LIVE ? LIVE_IDS : TEST_IDS;
+const INTERSTITIAL_EVERY = 3; // games between interstitials
+const Ads = (() => {
+  const cap = window.HaloCapacitor || window.Capacitor;
+  const log = [];
+  const note = m => { log.push(new Date().toLocaleTimeString()+' '+m); if (log.length>20) log.shift(); };
+  const platform = cap?.getPlatform?.() || 'web';
+  const native = !!(cap && (cap.isNativePlatform?.() || platform !== 'web'));
+  let AdMob = null;
+  try { AdMob = window.HaloAdMob || cap?.Plugins?.AdMob || (cap?.registerPlugin ? cap.registerPlugin('AdMob') : null); } catch(e){ note('plugin lookup error: '+e); }
+  const ids = AD_IDS[platform] || AD_IDS.android;
+  let ready = false, initing = null, gamesSinceAd = 0;
+  note(`platform=${platform} native=${native} plugin=${!!AdMob} live=${ADS_LIVE}`);
+  const noAds = () => { try { return localStorage.getItem('lilyleap-noads') === '1'; } catch(e){ return false; } };
+  const err = e => (e && (e.message || e.code || JSON.stringify(e))) || String(e);
+  function init(){
+    if (!native || !AdMob) return Promise.resolve();
+    if (initing) return initing;
+    initing = (async () => {
+      if (platform === 'ios'){
+        try {
+          const t = await AdMob.trackingAuthorizationStatus();
+          note('tracking: '+t.status);
+          if (t.status === 'notDetermined') await AdMob.requestTrackingAuthorization();
+        } catch(e){ note('tracking error: '+err(e)); }
+      }
+      try { await AdMob.initialize({}); ready = true; note('initialize ok'); }
+      catch(e){ note('initialize error: '+err(e)); initing = null; return; }
+      try {
+        const c = await AdMob.requestConsentInfo();
+        note('consent: '+c.status);
+        if (c.isConsentFormAvailable && c.status === 'REQUIRED') await AdMob.showConsentForm();
+      } catch(e){ note('consent error (ads still run): '+err(e)); }
+    })();
+    return initing;
+  }
+  function demo(){
+    return new Promise(res => {
+      $('ad').hidden = false; let n = 3; $('adCount').textContent = n;
+      const iv = setInterval(() => { n--; $('adCount').textContent = n; if (n<=0){ clearInterval(iv); $('ad').hidden = true; res(true); } }, 1000);
+    });
+  }
+  async function rewarded(){
+    if (!native) return demo();          // browser preview only
+    if (!AdMob){ note('rewarded: no plugin, continue granted'); return true; }
+    await init();
+    try {
+      await AdMob.prepareRewardVideoAd({ adId: ids.rewarded });
+      const reward = await AdMob.showRewardVideoAd();
+      note('rewarded shown: '+JSON.stringify(reward));
+      return true;
+    } catch(e){
+      // No ad available (common for new ad units): let the player continue anyway.
+      note('rewarded error: '+err(e)); return true;
+    }
+  }
+  async function maybeInterstitial(){
+    gamesSinceAd++;
+    if (!native || !AdMob || noAds() || gamesSinceAd < INTERSTITIAL_EVERY) return;
+    gamesSinceAd = 0;
+    await init();
+    try { await AdMob.prepareInterstitial({ adId: ids.interstitial }); await AdMob.showInterstitial(); note('interstitial shown'); }
+    catch(e){ note('interstitial error: '+err(e)); }
+  }
+  return { init, rewarded, maybeInterstitial, status: () => log.join('\n') };
+})();
+// Hidden ad status: tap the Lily Leap logo 5 times quickly.
+(() => {
+  let taps = 0, t = 0;
+  document.querySelector('.logo').addEventListener('click', () => {
+    const now = Date.now(); taps = now - t < 600 ? taps + 1 : 1; t = now;
+    if (taps >= 5){ taps = 0; $('diagText').textContent = Ads.status() || '(no events yet)'; $('diag').hidden = false; }
+  });
+  $('diagClose').addEventListener('click', () => $('diag').hidden = true);
+})();
+Ads.init();
+
+
+$('again').addEventListener('click', async () => { await Ads.maybeInterstitial(); newGame(); });
+$('cont').addEventListener('click', async () => {
+  $('over').hidden = true;
+  const earned = await Ads.rewarded();
+  if (earned) rescue(); else $('over').hidden = false;
+});
+const muteBtn = $('mute');
+const showMute = () => { muteBtn.textContent = Sound.muted ? '🔇' : '🔊'; muteBtn.setAttribute('aria-label', Sound.muted ? 'Turn sound on' : 'Mute sound'); };
+muteBtn.addEventListener('click', () => { Sound.toggle(); Sound.unlock(); showMute(); });
+muteBtn.addEventListener('pointerdown', e => e.stopPropagation());
+showMute();
+
+resize(); newGame(); requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
