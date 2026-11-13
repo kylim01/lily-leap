@@ -62,6 +62,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/LilyLeap.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            TARGETED_DEVICE_FAMILY=1 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             MARKETING_VERSION=$(node -p "require('./package.json').version") \
