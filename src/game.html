@@ -157,7 +157,23 @@ const Sound = (() => {
     src.connect(flt).connect(g).connect(a.destination); src.start(t);
   }
   return {
-    unlock: () => ctxA(),
+    unlock: () => {
+      const a = ctxA(); if (!a) return a;
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e) {}
+      if (!Sound._primed){
+        Sound._primed = true;
+        try { // silent buffer: finishes the iOS unlock
+          const b = a.createBuffer(1, 1, 22050), s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start(0);
+        } catch(e) {}
+        try { // silent looping <audio>: moves iOS to the "playback" category so the ring/silent switch doesn't mute the game
+          const el = document.createElement('audio');
+          el.setAttribute('playsinline', ''); el.loop = true; el.volume = 0.01;
+          el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAABErAAABAAgAZGF0YQAAAAA=';
+          const p = el.play(); if (p && p.catch) p.catch(() => { Sound._primed = false; });
+        } catch(e) {}
+      }
+      return a;
+    },
     hop:     () => { tone(380, 720, 0.09, 'square', 0.06); },
     land:    () => { tone(220, 120, 0.12, 'sine', 0.22); noise(0.08, 900, 400, 0.08); },
     firefly: () => { tone(1320, 1320, 0.12, 'triangle', 0.12); tone(1760, 1760, 0.18, 'triangle', 0.1, 0.08); },
@@ -499,6 +515,7 @@ function hideHint(){ if (hintShown){ hintShown = false; $('hint').style.opacity 
 
 // Controls: tap anywhere to hop forward; swipe left or right to hop sideways.
 let touch = null;
+['touchend','pointerup','click'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { passive:true }));
 cv.addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlock(); touch = { x:e.clientX, y:e.clientY, done:false }; });
 cv.addEventListener('pointermove', e => {
   if (!touch || touch.done) return;
